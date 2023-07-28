@@ -1,7 +1,7 @@
-#include "hls_ipv4.h"
+#include "hls_udp.h"
 
 void D_TOP_(
-  hls::stream<ap_axiu<8,1,1,1> >& Ipv4_Data,
+  hls::stream<ap_axiu<8,1,1,1> >& Udp_Data,
   hls::stream<ap_axiu<8,1,1,1> >& Mac_Data,
   ap_uint<4> Version,
   ap_uint<4> IHL,
@@ -13,9 +13,11 @@ void D_TOP_(
   ap_uint<8> Time_To_Live,
   ap_uint<8> Protocol,
   ap_uint<32> Source_Addr,
-  ap_uint<32> Dest_Addr
+  ap_uint<32> Dest_Addr,
+  ap_uint<16> Source_Port,
+  ap_uint<16> Dest_Port
 ){
-#pragma HLS INTERFACE axis port=Ipv4_Data
+#pragma HLS INTERFACE axis port=Udp_Data
 #pragma HLS INTERFACE axis port=Mac_Data
 
 #if 1==D_RETURN_S_AXILITE_
@@ -31,6 +33,8 @@ void D_TOP_(
 #pragma HLS INTERFACE s_axilite bundle=Ctrl offset=0x50 port=Protocol
 #pragma HLS INTERFACE s_axilite bundle=Ctrl offset=0x58 port=Source_Addr
 #pragma HLS INTERFACE s_axilite bundle=Ctrl offset=0x60 port=Dest_Addr
+#pragma HLS INTERFACE s_axilite bundle=Ctrl offset=0x68 port=Source_Port
+#pragma HLS INTERFACE s_axilite bundle=Ctrl offset=0x70 port=Dest_Port
 #pragma HLS STABLE variable=Version
 #pragma HLS STABLE variable=IHL
 #pragma HLS STABLE variable=Type_Of_Service
@@ -42,6 +46,8 @@ void D_TOP_(
 #pragma HLS STABLE variable=Protocol
 #pragma HLS STABLE variable=Source_Addr
 #pragma HLS STABLE variable=Dest_Addr
+#pragma HLS STABLE variable=Source_Port
+#pragma HLS STABLE variable=Dest_Port
 #endif
 
 #if 1==D_RETURN_AP_CTRL_HS_
@@ -56,6 +62,8 @@ void D_TOP_(
 #pragma HLS INTERFACE ap_none port=Protocol
 #pragma HLS INTERFACE ap_none port=Source_Addr
 #pragma HLS INTERFACE ap_none port=Dest_Addr
+#pragma HLS INTERFACE ap_none port=Source_Port
+#pragma HLS INTERFACE ap_none port=Dest_Port
 #pragma HLS STABLE variable=Version
 #pragma HLS STABLE variable=IHL
 #pragma HLS STABLE variable=Type_Of_Service
@@ -67,6 +75,8 @@ void D_TOP_(
 #pragma HLS STABLE variable=Protocol
 #pragma HLS STABLE variable=Source_Addr
 #pragma HLS STABLE variable=Dest_Addr
+#pragma HLS STABLE variable=Source_Port
+#pragma HLS STABLE variable=Dest_Port
 #endif
 
   ap_uint<4> Version_=Version;
@@ -80,6 +90,8 @@ void D_TOP_(
   ap_uint<8> Protocol_=Protocol;
   ap_uint<32> Source_Addr_=Source_Addr;
   ap_uint<32> Dest_Addr_=Dest_Addr;
+  ap_uint<16> Source_Port_=Source_Port;
+  ap_uint<16> Dest_Port_=Dest_Port;
 
 #pragma HLS DATAFLOW
 
@@ -93,7 +105,7 @@ void D_TOP_(
   ap_uint<16> Buf2_Len;
 
   Fill_Bufs<D_MAX_TOTAL_LENGTH_>(
-    Ipv4_Data,
+    Udp_Data,
     Buf1,Buf1_Len,
     Buf2,Buf2_Len,
     Total_Length_
@@ -111,6 +123,8 @@ void D_TOP_(
     Time_To_Live_,
     Protocol_,
     Source_Addr_,
-    Dest_Addr_
+    Dest_Addr_,
+    Source_Port_,
+    Dest_Port_
   );
 }

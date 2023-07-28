@@ -1,5 +1,5 @@
-#if !defined(HLS_ETH_MAC_H_INCLUDE_GUARD_)
-#define HLS_ETH_MAC_H_INCLUDE_GUARD_
+#if !defined(HLS_UDP_H_INCLUDE_GUARD_)
+#define HLS_UDP_H_INCLUDE_GUARD_
 
 #include "ap_int.h"
 #include "ap_axi_sdata.h"
@@ -9,7 +9,7 @@
 #include <array>
 
 void D_TOP_(
-  hls::stream<ap_axiu<8,1,1,1> >& Ipv4_Data,
+  hls::stream<ap_axiu<8,1,1,1> >& Udp_Data,
   hls::stream<ap_axiu<8,1,1,1> >& Mac_Data,
   ap_uint<4> Version,
   ap_uint<4> IHL,
@@ -21,12 +21,14 @@ void D_TOP_(
   ap_uint<8> Time_To_Live,
   ap_uint<8> Protocol,
   ap_uint<32> Source_Addr,
-  ap_uint<32> Dest_Addr
+  ap_uint<32> Dest_Addr,
+  ap_uint<16> Source_Port,
+  ap_uint<16> Dest_Port
 );
 
 template<int MAX_TOTAL_LENGTH_>
 static void Fill_Bufs(
-  hls::stream<ap_axiu<8,1,1,1> >& Ipv4_Data,
+  hls::stream<ap_axiu<8,1,1,1> >& Udp_Data,
   std::array<ap_uint<8>, Power2<Bit_Width<MAX_TOTAL_LENGTH_-1>::Value>::Value>& Buf1,
   ap_uint<16>& Buf1_Len,
   std::array<ap_uint<8>, Power2<Bit_Width<MAX_TOTAL_LENGTH_-1>::Value>::Value>& Buf2,
@@ -38,7 +40,7 @@ static void Fill_Bufs(
   loopBuf1: do{
 #pragma HLS PIPELINE II=1
 #pragma HLS LOOP_TRIPCOUNT min=MAX_TOTAL_LENGTH_ max=MAX_TOTAL_LENGTH_
-    Ipv4_Data>>Buf1_Data;
+    Udp_Data>>Buf1_Data;
     Buf1[Buf1_Len_++]=Buf1_Data.data;
   }while(!Buf1_Data.last&&Total_Length>Buf1_Len_);
   Buf1_Len=Buf1_Len_;
@@ -48,7 +50,7 @@ static void Fill_Bufs(
   loopBuf2: do{
 #pragma HLS PIPELINE II=1
 #pragma HLS LOOP_TRIPCOUNT min=MAX_TOTAL_LENGTH_ max=MAX_TOTAL_LENGTH_
-    Ipv4_Data>>Buf2_Data;
+    Udp_Data>>Buf2_Data;
     Buf2[Buf2_Len_++]=Buf2_Data.data;
   }while(!Buf2_Data.last&&Total_Length>Buf2_Len_);
   Buf2_Len=Buf2_Len_;
@@ -68,12 +70,15 @@ static void Packetize_Buf(
   ap_uint<8> Time_To_Live,
   ap_uint<8> Protocol,
   ap_uint<32> Source_Addr,
-  ap_uint<32> Dest_Addr
+  ap_uint<32> Dest_Addr,
+  ap_uint<16> Source_Port,
+  ap_uint<16> Dest_Port
 ){
 #pragma HLS INLINE
 
   ap_uint<32> Header_Checksum=0;
-  ap_uint<16> Total_Length=Buf_Len+ap_uint<6> {(IHL,ap_uint<2> {0})};
+  ap_uint<16> UDP_Length=Buf_Len+8;
+  ap_uint<16> Total_Length=UDP_Length+ap_uint<6> {(IHL,ap_uint<2> {0})};
 
   for(auto I=0;I<1+Total_Length;++I){
 #pragma HLS PIPELINE II=1
@@ -110,9 +115,17 @@ static void Packetize_Buf(
     else if(18==I) Mac_Data<< ap_axiu<8,1,1,1> {Dest_Addr(23,16),-1,-1,0,0,0,0};
     else if(19==I) Mac_Data<< ap_axiu<8,1,1,1> {Dest_Addr(15,8),-1,-1,0,0,0,0};
     else if(20==I) Mac_Data<< ap_axiu<8,1,1,1> {Dest_Addr(7,0),-1,-1,0,0,0,0};
+    else if(21==I) Mac_Data<< ap_axiu<8,1,1,1> {Source_Port(15,8),-1,-1,0,0,0,0};
+    else if(22==I) Mac_Data<< ap_axiu<8,1,1,1> {Source_Port(7,0),-1,-1,0,0,0,0};
+    else if(23==I) Mac_Data<< ap_axiu<8,1,1,1> {Dest_Port(15,8),-1,-1,0,0,0,0};
+    else if(24==I) Mac_Data<< ap_axiu<8,1,1,1> {Dest_Port(7,0),-1,-1,0,0,0,0};
+    else if(25==I) Mac_Data<< ap_axiu<8,1,1,1> {UDP_Length(15,8),-1,-1,0,0,0,0};
+    else if(26==I) Mac_Data<< ap_axiu<8,1,1,1> {UDP_Length(7,0),-1,-1,0,0,0,0};
+    else if(27==I) Mac_Data<< ap_axiu<8,1,1,1> {ap_uint<8> {0},-1,-1,0,0,0,0};
+    else if(28==I) Mac_Data<< ap_axiu<8,1,1,1> {ap_uint<8> {0},-1,-1,0,0,0,0};
 
-    else if(Total_Length==I) Mac_Data<<ap_axiu<8,1,1,1> {Buf[I-21],-1,-1,0,1,0,0};
-    else Mac_Data<<ap_axiu<8,1,1,1> {Buf[I-21],-1,-1,0,0,0,0};
+    else if(Total_Length==I) Mac_Data<<ap_axiu<8,1,1,1> {Buf[I-29],-1,-1,0,1,0,0};
+    else Mac_Data<<ap_axiu<8,1,1,1> {Buf[I-29],-1,-1,0,0,0,0};
   }
 }
 
@@ -132,7 +145,9 @@ static void Packetize_Bufs(
   ap_uint<8> Time_To_Live,
   ap_uint<8> Protocol,
   ap_uint<32> Source_Addr,
-  ap_uint<32> Dest_Addr
+  ap_uint<32> Dest_Addr,
+  ap_uint<16> Source_Port,
+  ap_uint<16> Dest_Port
 ){
   Packetize_Buf<MAX_TOTAL_LENGTH_>(
     Mac_Data,
@@ -146,7 +161,9 @@ static void Packetize_Bufs(
     Time_To_Live,
     Protocol,
     Source_Addr,
-    Dest_Addr
+    Dest_Addr,
+    Source_Port,
+    Dest_Port
   );
   Packetize_Buf<MAX_TOTAL_LENGTH_>(
     Mac_Data,
@@ -160,7 +177,9 @@ static void Packetize_Bufs(
     Time_To_Live,
     Protocol,
     Source_Addr,
-    Dest_Addr
+    Dest_Addr,
+    Source_Port,
+    Dest_Port
   );
 }
 
